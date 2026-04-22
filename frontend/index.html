@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AI-Based Skin Health Predictor</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+body{
+    font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background:linear-gradient(135deg,#eef2f7,#dce9f5);
+    padding:30px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+}
+
+h1{
+    color:#333;
+    margin-bottom:5px;
+}
+
+p.description{
+    max-width:600px;
+    color:#555;
+    line-height:1.6;
+    text-align:center;
+    margin-bottom:30px;
+}
+
+form{
+    background:white;
+    padding:25px 30px;
+    border-radius:12px;
+    max-width:450px;
+    width:100%;
+    box-shadow:0px 6px 15px rgba(0,0,0,0.1);
+}
+
+.form-group{
+    margin-bottom:15px;
+}
+
+input{
+    width:100%;
+    padding:10px;
+    border-radius:6px;
+    border:1px solid #ccc;
+    font-size:14px;
+}
+
+button{
+    width:100%;
+    padding:12px;
+    border:none;
+    border-radius:6px;
+    background:#3b82f6;
+    color:white;
+    font-size:16px;
+    cursor:pointer;
+    font-weight:bold;
+    transition:0.3s;
+}
+
+button:hover{
+    background:#2563eb;
+}
+
+#result{
+    margin-top:25px;
+    padding:20px;
+    background:white;
+    border-radius:12px;
+    max-width:450px;
+    box-shadow:0px 4px 12px rgba(0,0,0,0.1);
+    font-size:16px;
+    color:#333;
+    text-align:center;
+}
+
+.gauge-container{
+    margin-top:20px;
+    background:white;
+    padding:20px;
+    border-radius:12px;
+    box-shadow:0px 4px 12px rgba(0,0,0,0.1);
+}
+
+canvas{
+    margin-top:20px;
+}
+
+footer{
+    margin-top:40px;
+    font-size:14px;
+    color:#888;
+    text-align:center;
+}
+
+</style>
+</head>
+
+<body>
+
+<h1>AI-Based Skin Health Predictor</h1>
+
+<p class="description">
+Enter your daily lifestyle details below to get an AI-based prediction of your overall skin health score and check your risk of dry skin.
+</p>
+
+<form id="skinForm">
+
+<div class="form-group">Sleep Hours:
+<input type="number" name="sleep_hours" step="0.1" value="7"></div>
+
+<div class="form-group">Sleep Quality (1-10):
+<input type="number" name="sleep_quality" value="8"></div>
+
+<div class="form-group">Stress Level (1-10):
+<input type="number" name="stress_level" value="5"></div>
+
+<div class="form-group">Water Intake (liters/day):
+<input type="number" name="water_intake" step="0.1" value="2"></div>
+
+<div class="form-group">Diet Type (1=Healthy,0=Unhealthy):
+<input type="number" name="diet_type" value="1"></div>
+
+<div class="form-group">Screen Time (hours/day):
+<input type="number" name="screen_time" step="0.1" value="5"></div>
+
+<div class="form-group">Exercise Minutes/day:
+<input type="number" name="exercise_minutes" value="30"></div>
+
+<div class="form-group">Skincare Routine (1=Yes,0=No):
+<input type="number" name="skincare_routine" value="1"></div>
+
+<div class="form-group">Alcohol/Smoking (1=Yes,0=No):
+<input type="number" name="alcohol_smoking" value="0"></div>
+
+<button type="submit">Predict</button>
+
+</form>
+
+
+<div id="result"></div>
+
+<div class="gauge-container">
+<canvas id="scoreGauge" width="200" height="200"></canvas>
+</div>
+
+<canvas id="lifestyleChart" width="400" height="300"></canvas>
+
+
+<footer>
+AI-Based Skin Health Predictor <br>
+<span style="font-weight:500;">Made by – Ridhi Garg & Anurag Sharma</span>
+</footer>
+
+
+<script>
+
+document.getElementById("skinForm").addEventListener("submit", async function(e){
+
+e.preventDefault();
+
+const formData=new FormData(this);
+let data={};
+
+formData.forEach((value,key)=>data[key]=parseFloat(value));
+
+try{
+
+const response=await fetch("http://127.0.0.1:5050/predict",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify(data)
+});
+
+const result=await response.json();
+
+if(result.error){
+document.getElementById("result").innerHTML="<b>Error:</b> "+result.error;
+}
+
+else{
+
+const dryColor=result.dry_skin==='No Dryness'?'#22c55e':
+result.dry_skin==='Mild Dryness'?'#f59e0b':'#ef4444';
+
+const score=result.skin_score;
+
+document.getElementById("result").innerHTML=
+`<b>Skin Health Score:</b> <span style="color:#16a34a">${score}</span><br>
+<b>Dry Skin Prediction:</b> <span style="color:${dryColor}">${result.dry_skin}</span>`;
+
+
+drawGauge(score);
+drawRadar(data);
+
+}
+
+}
+
+catch(err){
+document.getElementById("result").innerHTML="<b>Error connecting to backend</b>";
+}
+
+});
+
+
+
+function drawGauge(score){
+
+const canvas=document.getElementById("scoreGauge");
+const ctx=canvas.getContext("2d");
+
+const centerX=canvas.width/2;
+const centerY=canvas.height/2;
+const radius=80;
+
+ctx.clearRect(0,0,canvas.width,canvas.height);
+
+ctx.beginPath();
+ctx.arc(centerX,centerY,radius,0,2*Math.PI);
+ctx.lineWidth=15;
+ctx.strokeStyle="#e5e7eb";
+ctx.stroke();
+
+const endAngle=(score/100)*2*Math.PI;
+
+ctx.beginPath();
+ctx.arc(centerX,centerY,radius,-Math.PI/2,endAngle-Math.PI/2);
+ctx.lineWidth=15;
+ctx.strokeStyle="#22c55e";
+ctx.stroke();
+
+ctx.font="28px Arial";
+ctx.fillStyle="#333";
+ctx.textAlign="center";
+ctx.fillText(score,centerX,centerY+10);
+
+}
+
+
+
+function drawRadar(data){
+
+const ctx=document.getElementById('lifestyleChart').getContext('2d');
+
+new Chart(ctx,{
+type:'radar',
+data:{
+labels:['Sleep','Stress','Water','Screen','Exercise'],
+datasets:[{
+label:'Lifestyle Factors',
+data:[
+data.sleep_hours,
+data.stress_level,
+data.water_intake,
+data.screen_time,
+data.exercise_minutes
+],
+backgroundColor:'rgba(59,130,246,0.2)',
+borderColor:'#3b82f6',
+pointBackgroundColor:'#3b82f6'
+}]
+},
+options:{
+scales:{
+r:{
+beginAtZero:true
+}
+}
+}
+});
+
+}
+
+</script>
+
+</body>
+</html>
+
